@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>bbox2marray</name>
+  <name>bbox2marker</name>
   <version>0.0.1</version>
-  <description>Un nodo ROS2 C++ che pubblica immagini dalla webcam</description>
+  <description>Un nodo ROS2 C++ che incrocia la pontcloud zed con detection di yolo</description>
 
   <maintainer email="tuo@email.com">Il Tuo Nome</maintainer>
   <license>MIT</license>

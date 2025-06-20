@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(bbox2marray)
+project(bbox2marker)
 
 # C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -16,30 +16,30 @@ include_directories(
   include
 )
 
-add_library(bbox2marray src/bbox2marray.cpp)
+add_library(bbox2marker src/bbox2marker.cpp)
 ament_target_dependencies(
-  bbox2marray
+  bbox2marker
   rclcpp
   sensor_msgs
   vision_msgs
   visualization_msgs
 )
 
-add_executable(bbox2marray_node src/bbox2marray_node.cpp)
+add_executable(bbox2marker_node src/bbox2marker_node.cpp)
 ament_target_dependencies(
-  bbox2marray_node
+  bbox2marker_node
   rclcpp
   sensor_msgs
   vision_msgs
   visualization_msgs
 )
 
-target_link_libraries(bbox2marray_node
-  bbox2marray
+target_link_libraries(bbox2marker_node
+  bbox2marker
 )
 
 install(TARGETS
-  bbox2marray_node
+  bbox2marker_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

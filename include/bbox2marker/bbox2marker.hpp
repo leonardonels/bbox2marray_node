@@ -1,17 +1,17 @@
-#ifndef BBOX2MARRAY_HPP_
-#define BBOX2MARRAY_HPP_
+#ifndef BBOX2MARKER_HPP_
+#define BBOX2MARKER_HPP_
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <vision_msgs/msg/detection2_d_array.hpp>
-#include <visualization_msgs/msg/marker_array.hpp>
+#include <visualization_msgs/msg/marker.hpp>
 
-namespace bbox2marray
+namespace bbox2marker
 {
-class BBoxToMarkerArray : public rclcpp::Node
+class BBoxToMarker : public rclcpp::Node
 {
 public:
-    BBoxToMarkerArray();
+    BBoxToMarker();
 
 private:
     void detection_callback(const vision_msgs::msg::Detection2DArray::SharedPtr msg);
@@ -20,7 +20,8 @@ private:
 
     rclcpp::Subscription<vision_msgs::msg::Detection2DArray>::SharedPtr detection_sub_;
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_sub_;
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
+    //rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 
     vision_msgs::msg::Detection2DArray::SharedPtr latest_detections_;
     sensor_msgs::msg::PointCloud2::SharedPtr latest_cloud_;
@@ -32,4 +33,4 @@ private:
 };
 }  // namespace bbox2marray
 
-#endif  // BBOX2MARRAY_HPP_
+#endif  // BBOX2MARKER_HPP_
