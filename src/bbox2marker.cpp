@@ -51,6 +51,48 @@ void BBoxToMarker::pointcloud_callback(const sensor_msgs::msg::PointCloud2::Shar
 
     int id = 0;
 
+    marker_blue.header = msg->header;
+    marker_blue.ns = "blue_cones";     // use more markers to specify if a cone is blue(class 0), yellow(class 4) or others
+    marker_blue.id = ++id;
+    marker_blue.type = visualization_msgs::msg::Marker::SPHERE_LIST;
+    marker_blue.action = visualization_msgs::msg::Marker::MODIFY;
+    marker_blue.scale.x = 0.15;
+    marker_blue.scale.y = 0.15;
+    marker_blue.scale.z = 0.15;
+    marker_blue.color.r = 0.0;  // using colors for multi color vector, one for each point
+    marker_blue.color.g = 0.0;
+    marker_blue.color.b = 1.0;
+    marker_blue.color.a = 1.0;
+    marker_blue.lifetime = rclcpp::Duration(0, 10);
+
+    marker_yellow.header = msg->header;
+    marker_yellow.ns = "yellow_cones";     // use more markers to specify if a cone is blue(class 0), yellow(class 4) or others
+    marker_yellow.id = ++id;
+    marker_yellow.type = visualization_msgs::msg::Marker::SPHERE_LIST;
+    marker_yellow.action = visualization_msgs::msg::Marker::MODIFY;
+    marker_yellow.scale.x = 0.15;
+    marker_yellow.scale.y = 0.15;
+    marker_yellow.scale.z = 0.15;
+    marker_yellow.color.r = 0.5;
+    marker_yellow.color.g = 0.5;
+    marker_yellow.color.b = 0.0;
+    marker_yellow.color.a = 1.0;
+    marker_yellow.lifetime = rclcpp::Duration(0, 10);
+
+    marker_other.header = msg->header;
+    marker_other.ns = "other_cones";     // use more markers to specify if a cone is blue(class 0), yellow(class 4) or others
+    marker_other.id = ++id;
+    marker_other.type = visualization_msgs::msg::Marker::SPHERE_LIST;
+    marker_other.action = visualization_msgs::msg::Marker::MODIFY;
+    marker_other.scale.x = 0.15;
+    marker_other.scale.y = 0.15;
+    marker_other.scale.z = 0.15;
+    marker_other.color.r = 1.0;
+    marker_other.color.g = 1.0;
+    marker_other.color.b = 1.0;
+    marker_other.color.a = 1.0;
+    marker_other.lifetime = rclcpp::Duration(0, 10);
+
     for (const auto &detection : latest_detections_->detections)
     {
         const auto &bbox = detection.bbox;
@@ -60,22 +102,9 @@ void BBoxToMarker::pointcloud_callback(const sensor_msgs::msg::PointCloud2::Shar
 
         if (u < 0 || u >= cloud_width_ || v < 0 || v >= cloud_height_)
             continue;
-
+        
         if (detection.results[0].hypothesis.class_id == "0")
         {
-            marker_blue.header = msg->header;
-            marker_blue.ns = "blue_cones";     // use more markers to specify if a cone is blue(class 0), yellow(class 4) or others
-            marker_blue.id = ++id;
-            marker_blue.type = visualization_msgs::msg::Marker::SPHERE_LIST;
-            marker_blue.action = visualization_msgs::msg::Marker::ADD;
-            marker_blue.scale.x = 0.15;
-            marker_blue.scale.y = 0.15;
-            marker_blue.scale.z = 0.15;
-            marker_blue.color.r = 0.0;
-            marker_blue.color.g = 0.0;
-            marker_blue.color.b = 1.0;
-            marker_blue.color.a = 1.0;
-
             geometry_msgs::msg::Point point;
             if (get_point_from_uv(u, v, point))
             {
@@ -83,19 +112,6 @@ void BBoxToMarker::pointcloud_callback(const sensor_msgs::msg::PointCloud2::Shar
             }
         }else if (detection.results[0].hypothesis.class_id == "4")
         {
-            marker_yellow.header = msg->header;
-            marker_yellow.ns = "yellow_cones";     // use more markers to specify if a cone is blue(class 0), yellow(class 4) or others
-            marker_yellow.id = ++id;
-            marker_yellow.type = visualization_msgs::msg::Marker::SPHERE_LIST;
-            marker_yellow.action = visualization_msgs::msg::Marker::ADD;
-            marker_yellow.scale.x = 0.15;
-            marker_yellow.scale.y = 0.15;
-            marker_yellow.scale.z = 0.15;
-            marker_yellow.color.r = 0.5;
-            marker_yellow.color.g = 0.5;
-            marker_yellow.color.b = 0.0;
-            marker_yellow.color.a = 1.0;
-
             geometry_msgs::msg::Point point;
             if (get_point_from_uv(u, v, point))
             {
@@ -103,19 +119,6 @@ void BBoxToMarker::pointcloud_callback(const sensor_msgs::msg::PointCloud2::Shar
             }
         }else
         {
-            marker_other.header = msg->header;
-            marker_other.ns = "other_cones";     // use more markers to specify if a cone is blue(class 0), yellow(class 4) or others
-            marker_other.id = ++id;
-            marker_other.type = visualization_msgs::msg::Marker::SPHERE_LIST;
-            marker_other.action = visualization_msgs::msg::Marker::ADD;
-            marker_other.scale.x = 0.15;
-            marker_other.scale.y = 0.15;
-            marker_other.scale.z = 0.15;
-            marker_other.color.r = 1.0;
-            marker_other.color.g = 1.0;
-            marker_other.color.b = 1.0;
-            marker_other.color.a = 1.0;
-
             geometry_msgs::msg::Point point;
             if (get_point_from_uv(u, v, point))
             {
