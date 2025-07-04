@@ -106,6 +106,8 @@ void BBoxToMarker::pointcloud_callback(const sensor_msgs::msg::PointCloud2::Shar
 
     marker_pub_->publish(marker);
     RCLCPP_INFO(this->get_logger(), "found %d markers", id); // debug
+
+    latest_detections_.reset();
 }
 
 bool BBoxToMarker::get_point_from_uv(int u, int v, geometry_msgs::msg::Point &point)
