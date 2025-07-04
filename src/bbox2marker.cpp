@@ -61,8 +61,8 @@ void BBoxToMarker::pointcloud_callback(const sensor_msgs::msg::PointCloud2::Shar
     {
         const auto &bbox = detection.bbox;
         int u = static_cast<int>(bbox.center.position.x * scale_x);
-        int v = static_cast<int>(bbox.center.position.y * scale_y);   // return the vertical center of the bbox
-        //int v = static_cast<int>(bbox.center.position.y * scale_y - bbox.size_y / 2);   // return the base of the bbox
+        //int v = static_cast<int>(bbox.center.position.y * scale_y);   // return the vertical center of the bbox
+        int v = static_cast<int>((bbox.center.position.y + bbox.size_y / 2.0) * scale_y);   // return the base of the bbox
 
         if (u < 0 || u >= cloud_width_ || v < 0 || v >= cloud_height_)
             continue;
