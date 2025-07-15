@@ -11,6 +11,8 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(vision_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(cv_bridge REQUIRED)
 
 include_directories(
   include
@@ -23,6 +25,8 @@ ament_target_dependencies(
   sensor_msgs
   vision_msgs
   visualization_msgs
+  OpenCV
+  cv_bridge
 )
 
 add_executable(bbox2marker_node src/bbox2marker_node.cpp)
@@ -32,6 +36,8 @@ ament_target_dependencies(
   sensor_msgs
   vision_msgs
   visualization_msgs
+  OpenCV
+  cv_bridge
 )
 
 target_link_libraries(bbox2marker_node

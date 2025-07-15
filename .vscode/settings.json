@@ -4,6 +4,7 @@
         "string": "cpp",
         "vector": "cpp",
         "__split_buffer": "cpp",
-        "list": "cpp"
+        "list": "cpp",
+        "functional": "cpp"
     }
 }

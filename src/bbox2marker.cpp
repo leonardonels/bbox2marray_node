@@ -1,21 +1,20 @@
 #include "bbox2marker/bbox2marker.hpp"
 
-#include <sensor_msgs/point_cloud2_iterator.hpp>
-#include <visualization_msgs/msg/marker.hpp>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.hpp>
+
 #include <cmath>
 
 namespace bbox2marker
 {
+
 BBoxToMarker::BBoxToMarker()
-: Node("bbox_to_marker_node")
+: Node("bbox_to_marker_node"),
+  camera_info_received_(false)
 {
-    declare_parameter("cloud_width", 448);
-    declare_parameter("cloud_height", 256);
     declare_parameter("image_width", 1920);
     declare_parameter("image_height", 1080);
 
-    get_parameter("cloud_width", cloud_width_);
-    get_parameter("cloud_height", cloud_height_);
     get_parameter("image_width", image_width_);
     get_parameter("image_height", image_height_);
 
@@ -23,9 +22,13 @@ BBoxToMarker::BBoxToMarker()
         "/cone_detections", 10,
         std::bind(&BBoxToMarker::detection_callback, this, std::placeholders::_1));
 
-    pointcloud_sub_ = create_subscription<sensor_msgs::msg::PointCloud2>(
-        "/zed/zed_node/point_cloud/cloud_registered", 10,
-        std::bind(&BBoxToMarker::pointcloud_callback, this, std::placeholders::_1));
+    depth_sub_ = create_subscription<sensor_msgs::msg::Image>(
+        "/zed/zed_node/depth/depth_registered", 10,
+        std::bind(&BBoxToMarker::depth_callback, this, std::placeholders::_1));
+
+    camera_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
+        "/zed/zed_node/depth/camera_info", 10,
+        std::bind(&BBoxToMarker::camera_info_callback, this, std::placeholders::_1));
 
     marker_pub_ = create_publisher<visualization_msgs::msg::Marker>("/cones", 10);
 }
@@ -35,21 +38,50 @@ void BBoxToMarker::detection_callback(const vision_msgs::msg::Detection2DArray::
     latest_detections_ = msg;
 }
 
-void BBoxToMarker::pointcloud_callback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
+void BBoxToMarker::camera_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
 {
+    if (!camera_info_received_)
+    {
+        fx_ = static_cast<float>(msg->k[0]);
+        fy_ = static_cast<float>(msg->k[4]);
+        cx_ = static_cast<float>(msg->k[2]);
+        cy_ = static_cast<float>(msg->k[5]);
+        camera_info_received_ = true;
+
+        RCLCPP_INFO(this->get_logger(), "Camera intrinsics received: fx=%.2f, fy=%.2f, cx=%.2f, cy=%.2f", fx_, fy_, cx_, cy_);
+    }
+}
+
+void BBoxToMarker::depth_callback(const sensor_msgs::msg::Image::SharedPtr msg)
+{
+    if (!camera_info_received_)
+    {
+        RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Waiting for camera info...");
+        return;
+    }
+
     if (!latest_detections_)
         return;
 
-    latest_cloud_ = msg;
+    try
+    {
+        latest_depth_image_ = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_32FC1)->image;
+        latest_depth_header_ = msg->header;
+    }
+    catch (cv_bridge::Exception& e)
+    {
+        RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
+        return;
+    }
 
-    float scale_x = static_cast<float>(cloud_width_) / image_width_;
-    float scale_y = static_cast<float>(cloud_height_) / image_height_;
+    publish_markers(latest_depth_header_);
+}
 
-    visualization_msgs::msg::Marker marker;     // use more markers to specify if a cone is blue(class 0), yellow(class 4) or others
-
-    int id = 0;
-
-    marker.header = msg->header;
+void BBoxToMarker::publish_markers(const std_msgs::msg::Header &header)
+{
+    visualization_msgs::msg::Marker marker;
+    marker.header = header;
+    marker.ns = "cones";
     marker.type = visualization_msgs::msg::Marker::SPHERE_LIST;
     marker.action = visualization_msgs::msg::Marker::MODIFY;
     marker.scale.x = 0.15;
@@ -57,82 +89,92 @@ void BBoxToMarker::pointcloud_callback(const sensor_msgs::msg::PointCloud2::Shar
     marker.scale.z = 0.15;
     marker.lifetime = rclcpp::Duration(0, 10);
 
+    int id = 0;
+
+    float scale_x = static_cast<float>(image_width_) / image_width_;  // actually 1.0, but keep for flexibility
+    float scale_y = static_cast<float>(image_height_) / image_height_;
+
     for (const auto &detection : latest_detections_->detections)
     {
         const auto &bbox = detection.bbox;
-        int u = static_cast<int>(bbox.center.position.x * scale_x);
-        //int v = static_cast<int>(bbox.center.position.y * scale_y);   // return the vertical center of the bbox
-        int v = static_cast<int>((bbox.center.position.y + bbox.size_y / 2.0) * scale_y);   // return the base of the bbox
+        int u = static_cast<int>(bbox.center.position.x);
+        // Use the base of the bbox (vertical bottom)
+        int v = static_cast<int>(bbox.center.position.y + bbox.size_y / 2.0);
 
-        if (u < 0 || u >= cloud_width_ || v < 0 || v >= cloud_height_)
+        // Check bounds
+        if (u < 0 || u >= latest_depth_image_.cols || v < 0 || v >= latest_depth_image_.rows)
             continue;
-        
+
         geometry_msgs::msg::Point point;
         if (get_point_from_uv(u, v, point))
         {
             marker.points.push_back(point);
-        }
-        
-        if (detection.results[0].hypothesis.class_id == "0")
-        {
+
+            // Assign color based on class id
             std_msgs::msg::ColorRGBA color;
-            color.r = 0.0f;
-            color.g = 0.0f;
-            color.b = 1.0f;
-            color.a = 1.0f;
+            if (!detection.results.empty())
+            {
+                const std::string& class_id = detection.results[0].hypothesis.class_id;
+                if (class_id == "0") // Blue cone
+                {
+                    color.r = 0.0f;
+                    color.g = 0.0f;
+                    color.b = 1.0f;
+                    color.a = 1.0f;
+                }
+                else if (class_id == "4") // Yellow cone
+                {
+                    color.r = 1.0f;
+                    color.g = 1.0f;
+                    color.b = 0.0f;
+                    color.a = 1.0f;
+                }
+                else // Other cones
+                {
+                    color.r = 1.0f;
+                    color.g = 0.5f;
+                    color.b = 0.0f;
+                    color.a = 1.0f;
+                }
+            }
+            else
+            {
+                // Default color if no class info
+                color.r = 1.0f;
+                color.g = 1.0f;
+                color.b = 1.0f;
+                color.a = 1.0f;
+            }
             marker.colors.push_back(color);
 
-        }else if (detection.results[0].hypothesis.class_id == "4")
-        {
-            std_msgs::msg::ColorRGBA color;
-            color.r = 1.0f;
-            color.g = 1.0f;
-            color.b = 0.0f;
-            color.a = 1.0f;
-            marker.colors.push_back(color);
-            
-        }else
-        {
-            std_msgs::msg::ColorRGBA color;
-            color.r = 1.0f;
-            color.g = 0.5f;
-            color.b = 0.0f;
-            color.a = 1.0f;
-            marker.colors.push_back(color);
-            
+            ++id;
         }
-        ++id;
     }
 
     marker_pub_->publish(marker);
-    RCLCPP_INFO(this->get_logger(), "found %d markers", id); // debug
+    RCLCPP_INFO(this->get_logger(), "Published %d markers", id);
 
     latest_detections_.reset();
 }
 
 bool BBoxToMarker::get_point_from_uv(int u, int v, geometry_msgs::msg::Point &point)
 {
-    if (!latest_cloud_)
+    if (latest_depth_image_.empty())
         return false;
 
-    int index = v * cloud_width_ + u;
-    if (index >= static_cast<int>(latest_cloud_->width * latest_cloud_->height))
+    if (u < 0 || u >= latest_depth_image_.cols || v < 0 || v >= latest_depth_image_.rows)
         return false;
 
-    sensor_msgs::PointCloud2ConstIterator<float> iter_x(*latest_cloud_, "x");
-    sensor_msgs::PointCloud2ConstIterator<float> iter_y(*latest_cloud_, "y");
-    sensor_msgs::PointCloud2ConstIterator<float> iter_z(*latest_cloud_, "z");
-
-    iter_x += index;
-    iter_y += index;
-    iter_z += index;
-
-    if (std::isnan(*iter_x) || std::isnan(*iter_y) || std::isnan(*iter_z))
+    float Z = latest_depth_image_.at<float>(v, u);
+    if (std::isnan(Z) || Z <= 0.001f)
         return false;
 
-    point.x = *iter_x;
-    point.y = *iter_y;
-    point.z = *iter_z;
+    // Project pixel to camera frame 3D point
+    point.x = (u - cx_) * Z / fx_;
+    point.y = (v - cy_) * Z / fy_;
+    point.z = Z;
+
     return true;
 }
+
 }  // namespace bbox2marker
