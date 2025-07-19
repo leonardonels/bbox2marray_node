@@ -7,9 +7,18 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <visualization_msgs/msg/marker.hpp>
-#include <geometry_msgs/msg/point.hpp>
+#include <geometry_msgs/msg/point_stamped.hpp>
 
 #include <opencv2/opencv.hpp>
+
+// TF2 and message filters
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+
+#include <message_filters/subscriber.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/synchronizer.h>
 
 namespace bbox2marker
 {
@@ -20,23 +29,36 @@ public:
     BBoxToMarker();
 
 private:
-    void detection_callback(const vision_msgs::msg::Detection2DArray::SharedPtr msg);
-    void depth_callback(const sensor_msgs::msg::Image::SharedPtr msg);
     void camera_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
-
+    void synced_callback(
+        const vision_msgs::msg::Detection2DArray::ConstSharedPtr detection_msg,
+        const sensor_msgs::msg::Image::ConstSharedPtr depth_msg);
+    
     void publish_markers(const std_msgs::msg::Header &header);
-    bool get_point_from_uv(int u, int v, geometry_msgs::msg::Point &point);
+    bool get_point_from_uv(int u, int v, geometry_msgs::msg::Point &point_out);
 
-    // Subscribers
-    rclcpp::Subscription<vision_msgs::msg::Detection2DArray>::SharedPtr detection_sub_;
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr depth_sub_;
+    // Message filter subscribers
+    std::shared_ptr<message_filters::Subscriber<vision_msgs::msg::Detection2DArray>> detection_sub_;
+    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> depth_sub_;
+
+    // Sync
+    using SyncPolicy = message_filters::sync_policies::ApproximateTime<
+        vision_msgs::msg::Detection2DArray,
+        sensor_msgs::msg::Image>;
+    std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync_;
+
+    // TF2
+    tf2_ros::Buffer tf_buffer_;
+    tf2_ros::TransformListener tf_listener_;
+
+    // Camera info subscriber
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
 
     // Publisher
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
 
     // Latest messages
-    vision_msgs::msg::Detection2DArray::SharedPtr latest_detections_;
+    vision_msgs::msg::Detection2DArray::ConstSharedPtr latest_detections_;
     cv::Mat latest_depth_image_;
     std_msgs::msg::Header latest_depth_header_;
 
