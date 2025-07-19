@@ -5,6 +5,40 @@
 
 #include <cmath>
 
+/*
+TODO: IMPLEMENT PROPER SYNCRONISATION
+
+#include <message_filters/subscriber.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <message_filters/synchronizer.h>
+
+// Declare subscribers
+std::shared_ptr<message_filters::Subscriber<vision_msgs::msg::Detection2DArray>> detection_sub_;
+std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> depth_sub_;
+
+// Define sync policy and synchronizer
+typedef message_filters::sync_policies::ApproximateTime<
+    vision_msgs::msg::Detection2DArray,
+    sensor_msgs::msg::Image> SyncPolicy;
+
+std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync_;
+
+detection_sub_ = std::make_shared<message_filters::Subscriber<vision_msgs::msg::Detection2DArray>>(this, "/cone_detections");
+depth_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(this, "/zed/zed_node/depth/depth_registered");
+
+sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(10), *detection_sub_, *depth_sub_);
+sync_->registerCallback(std::bind(&BBoxToMarker::synced_callback, this, std::placeholders::_1, std::placeholders::_2));
+
+void BBoxToMarker::synced_callback(
+    const vision_msgs::msg::Detection2DArray::SharedPtr detection_msg,
+    const sensor_msgs::msg::Image::SharedPtr depth_msg)
+{
+    // Now these messages are time-synchronized
+    // Safe to process them together
+}
+
+*/
+
 namespace bbox2marker
 {
 
@@ -79,8 +113,17 @@ void BBoxToMarker::depth_callback(const sensor_msgs::msg::Image::SharedPtr msg)
 
 void BBoxToMarker::publish_markers(const std_msgs::msg::Header &header)
 {
+    rclcpp::Time depth_time(header.stamp);
+    rclcpp::Time detection_time(latest_detections_->header.stamp);
+    if (std::abs((depth_time - detection_time).seconds()) > 0.05)
+    {
+        RCLCPP_WARN(this->get_logger(), "Depth and detection not synchronized: delta=%.3f sec", (depth_time - detection_time).seconds());
+        return;
+    }
+
     visualization_msgs::msg::Marker marker;
     marker.header = header;
+    //marker.header.frame_id = "map";
     marker.ns = "cones";
     marker.type = visualization_msgs::msg::Marker::SPHERE_LIST;
     marker.action = visualization_msgs::msg::Marker::MODIFY;
