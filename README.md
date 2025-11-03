@@ -29,4 +29,3 @@ Important notes
   compute valid 3D points.
 - The node may sample several pixels inside a bbox and filter invalid depth
   values (NaN, inf, out of range).
-# bbox2marray_node
